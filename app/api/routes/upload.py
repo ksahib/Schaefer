@@ -15,7 +15,7 @@ async def upload_midi(
 ):
     if bpm <= 0:
         raise HTTPException(400, "BPM must be a positive integer")
-    # Parse optional parent labels
+    
     parent_label = []
     if labels_json:
         try:

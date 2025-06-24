@@ -6,10 +6,13 @@ class BarLabel(BaseModel):
     start_bar: float
     end_bar: float
 
-class IndexedBarLabel(BarLabel):
+class IndexedBarLabel(BaseModel):
     segment_id: str
     bar_index: int
-    parent_label: Optional[str]
+    label: Optional[str] = None
+    start_bar: Optional[int] = None
+    end_bar: Optional[int] = None
+
 
 class MidiIngestionResponse(BaseModel):
     indexed_bars: List[IndexedBarLabel]

@@ -12,19 +12,16 @@ app = FastAPI(
 def custom_openapi():
     if app.openapi_schema:
         return app.openapi_schema
-    # generate the schema as usual
     openapi_schema = get_openapi(
         title=app.title,
         version=app.version,
         routes=app.routes,
         description=app.description,
     )
-    # force the version string
     openapi_schema["openapi"] = "3.0.3"
     app.openapi_schema = openapi_schema
     return app.openapi_schema
 
-# override the method
 app.openapi = custom_openapi
 app.include_router(chat_router, prefix="/chat", tags=["chat"])
 app.include_router(upload_router, prefix="/upload", tags=["midi"])
