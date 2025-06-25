@@ -1,0 +1,42 @@
+{
+  "bpm": 120,
+  "notes": [
+    {
+      "pitch": 102,
+      "start": 0,
+      "duration": 4
+    },
+    {
+      "pitch": 98,
+      "start": 0,
+      "duration": 4
+    },
+    {
+      "pitch": 94,
+      "start": 0,
+      "duration": 4
+    },
+    {
+      "pitch": 100,
+      "start": 4,
+      "duration": 4
+    },
+    {
+      "pitch": 97,
+      "start": 8,
+      "duration": 4
+    },
+    {
+      "pitch": 103,
+      "start": 12,
+      "duration": 4
+    }
+  ],
+  "markers": [
+    {
+      "beat": 16,
+      "label": "verse",
+      "bars": 12
+    }
+  ]
+}

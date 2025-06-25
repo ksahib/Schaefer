@@ -1,12 +1,13 @@
 import { useRef, useState, useEffect } from 'react';
 import * as Tone from 'tone';
-
+import { Midi } from "@tonejs/midi";
 const piano_keys = 88;
 const Notes = Array.from({ length: piano_keys }, (_, i) => 108 - i);
 const note_height = 20;
 const beat_width = 40;
 const num_beats = 64;
 const resizeMargin = 6;
+
 
 function App() {
   const synth = useRef(null);
@@ -17,6 +18,8 @@ function App() {
   const [dragInfo, setDragInfo] = useState(null);
   const requestRef = useRef();
   const playMarkerRef = useRef(0);
+  const [markerMode, setMarkerMode] = useState(false);
+  const [markers, setMarkers] = useState([]);
 
   const getNoteLabel = (midi) => {
     const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -70,6 +73,22 @@ function App() {
     ctx.moveTo(playMarker + 40, 0);
     ctx.lineTo(playMarker + 40, piano_keys * note_height);
     ctx.stroke();
+
+    markers.forEach(({ beat, label }) => {
+  const x = 40 + beat * beat_width;
+
+  // Vertical line
+  ctx.strokeStyle = "#10b981"; // emerald
+  ctx.beginPath();
+  ctx.moveTo(x, 0);
+  ctx.lineTo(x, piano_keys * note_height);
+  ctx.stroke();
+
+  // Text label
+  ctx.fillStyle = "#065f46";
+  ctx.font = "12px sans-serif";
+  ctx.fillText(label, x + 2, 12);
+});
   };
 
   const animate = () => {
@@ -153,6 +172,22 @@ function App() {
   const handleMouseDown = async (e) => {
   await Tone.start();
 
+  if (markerMode && e.button === 0) {
+  const rect = canvasref.current.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+
+  const beat = Math.floor((x - 40) / beat_width);
+
+  if (beat >= 0 && beat < num_beats) {
+    const label = prompt("Enter marker label (e.g. Verse, Chorus):");
+    if (label) {
+      setMarkers((prev) => [...prev, { beat, label }]);
+    }
+  }
+
+  return;
+}
+
   const rect = canvasref.current.getBoundingClientRect();
   const x = e.clientX - rect.left;
   const y = e.clientY - rect.top;
@@ -212,6 +247,36 @@ function App() {
 
   const handleMouseUp = () => setDragInfo(null);
 
+ const exportToJson = () => {
+  // Calculate marker bar lengths (simple: beat diff between consecutive)
+  const sortedMarkers = [...markers].sort((a, b) => a.beat - b.beat);
+  const enrichedMarkers = sortedMarkers.map((marker, i) => {
+    const next = sortedMarkers[i + 1];
+    const bars = next ? (next.beat - marker.beat) / 4 : (num_beats - marker.beat) / 4;
+    return { ...marker, bars };
+  });
+
+  const jsonData = {
+    bpm,
+    notes,
+    markers: enrichedMarkers,
+  };
+
+  const blob = new Blob([JSON.stringify(jsonData, null, 2)], {
+    type: "application/json",
+  });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "composition.json";
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+
+
+
   return (
     <div className="p-4 font-sans">
       <div className="mb-4 flex items-center gap-4">
@@ -230,6 +295,18 @@ function App() {
         >
           {isPlaying ? "Stop" : "Play"}
         </button>
+        <button
+  className={`px-4 py-1 rounded ${markerMode ? 'bg-green-600 text-white' : 'bg-gray-200 text-gray-800'}`}
+  onClick={() => setMarkerMode((prev) => !prev)}
+>
+  {markerMode ? "Exit Marker Mode" : "Add Marker"}
+</button>
+<button
+  className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-1 rounded"
+  onClick={exportToJson}
+>
+  Export
+</button>
         <p className="text-sm text-gray-500 ml-4">
           Left click = Add, Drag = Move/Resize, Right click = Delete, Click note = Play sound
         </p>
