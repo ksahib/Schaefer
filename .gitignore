@@ -1,0 +1,12 @@
+Extraction/
+KNOWLEDGE/
+uploads/
+chat.txt
+app/__pycache__/
+venv/
+.venv-weaviate/
+__pycache__/
+*.pyc
+.vscode/
+.DS_Store
+*.swp
