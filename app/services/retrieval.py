@@ -1,129 +1,91 @@
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM as AM, AutoTokenizer
 from pymongo import MongoClient
-from sentence_transformers import SentenceTransformer
-from app.db.client import semantic_search
+from sentence_transformers import SentenceTransformer, util
+from ctransformers import AutoModelForCausalLM as CAM
+import torch
 
-model_name = "Qwen/Qwen3-0.6B"
-tokeniser = AutoTokenizer.from_pretrained(model_name)
-model = AutoModelForCausalLM.from_pretrained(model_name, device_map="auto")
-_mongo_client = MongoClient("mongodb://localhost:27017/")
-_db           = _mongo_client["featureDB"]["songsections"]
+# -------- Load models once -------- #
+# Intent model
+intent_model_name = "distilgpt2"
+tokenizer_intent = AutoTokenizer.from_pretrained(intent_model_name)
+intent_model = AM.from_pretrained(intent_model_name)
 
-llm_model = "Qwen/QwQ-32B"
-llm_model = AutoModelForCausalLM.from_pretrained(
-    llm_model,
-    torch_dtype="auto",
-    device_map="auto"
+# Sentence embedding model
+embed_model = SentenceTransformer("all-MiniLM-L6-v2")
+
+
+# llm_model_name = "unsloth/Qwen2.5-3B-Instruct-bnb-4bit"
+# llm_tokenizer = AutoTokenizer.from_pretrained(llm_model_name)
+llm_model = CAM.from_pretrained(
+    "E:/PIANO/NEWSCHAEFER/Schaefer/app/GGUF",
+    model_file="tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf",
+    model_type="llama",
+    max_new_tokens=512,
+    temperature=0.7,
+    top_p=0.9,
+    repetition_penalty=1.1
 )
-llm_tokeniser = AutoTokenizer.from_pretrained(llm_model)
 
+# -------- MongoDB Connection -------- #
+_mongo_client = MongoClient("mongodb://localhost:27017/")
+_db = _mongo_client["featureDB"]["songsections"]
+
+# -------- INTENT PARSING -------- #
 def parse_intent(query: str) -> str:
-    sections = _db.distinct("sections")
-    if not sections:
-        sections = ['none']
-    prompt = (
-        "You are an intent parser.  Given a single query, you MUST respond with exactly one "
-        "of these sections (or 'none'): "
-        + ", ".join(sections)
-        + ".\n\n"
-        f"Query: {query}\n"
-        "Section:"
+    sections = _db.distinct("sections") or ['none']
+    prompt = ("You are an intent parser. Given a single query, respond with one section "
+              f"from the following (or 'none'): {', '.join(sections)}\nQuery: {query}\nSection:")
+    inputs = tokenizer_intent(prompt, return_tensors="pt").to(intent_model.device)
+    out = intent_model.generate(
+        **inputs, max_new_tokens=5, do_sample=False, num_beams=1,
+        eos_token_id=tokenizer_intent.eos_token_id,
+        pad_token_id=tokenizer_intent.eos_token_id
     )
-    print(prompt)
-    inputs = tokeniser(prompt, return_tensors="pt").to(model.device)
-    prompt_len = inputs["input_ids"].shape[-1]
+    decoded = tokenizer_intent.decode(out[0, inputs["input_ids"].shape[-1]:], skip_special_tokens=True)
+    return decoded.strip()
 
-    out = model.generate(
-        **inputs,
-        max_new_tokens=5,      
-        do_sample=False,
-        num_beams=1,
-        eos_token_id=tokeniser.eos_token_id,
-        pad_token_id=tokeniser.eos_token_id
-    )
+# -------- FEATURE RETRIEVAL & EMBEDDING -------- #
+def retrieve_features(section):
+    return _db.distinct(section)
 
-    new_tokens = out[0, prompt_len:]
-    return tokeniser.decode(new_tokens, skip_special_tokens=True).splitlines()[0].strip()
+def embed_features_query(features, query):
+    texts = ["; ".join(f"{k}: {', '.join(v) if isinstance(v, list) else v}" for k, v in feat.items())
+             for feat in features]
+    prompt = f"Features for section: {' | '.join(texts[:20])}\nquery: {query}"
+    return embed_model.encode(prompt, convert_to_tensor=True)
 
-
-
-def retrieve_features(section:str):
-    results = _db.distinct(section)
-    print(list(results))
-    return results
-
-def embed_features_query(features: list[dict], query: str):
-    feature_texts = []
-    for feat in features:
-        parts = []
-        for k, v in feat.items():
-            if isinstance(v, list):
-                parts.append(f"{k}: {','.join(map(str, v))}")
-            else:
-                parts.append(f"{k}: {v}")
-        feature_texts.append("; ".join(parts))
-
-    features_str = " | ".join(feature_texts)
-    prompt = f"Features for section: {features_str}\nquery: {query}"
-
-    model = SentenceTransformer("all-MiniLM-L6-v2")
-    query_embedding = model.encode(prompt)
-    vector = query_embedding.tolist()
-    return vector
-
-
-def retrieve_relevant_info(query:str, section):
-    mid_prompt = retrieve_features(section)
-    embed = embed_features_query(mid_prompt, query)
-    semantic = semantic_search(embed, top_k=5)
-    return semantic
-    
-
-def build_prompt(query:str):
-    section = parse_intent(query)
-    relevant_info = retrieve_relevant_info(section)
+def retrieve_relevant_info(query, section):
     features = retrieve_features(section)
-    prompt=f"You are a world‑class music theory tutor.  When answering, be precise, reference specific bars or measures, and explain your reasoning in clear, pedagogical language.\n" \
-    "=======MUSICAL CONTEXT=======\n" \
-    "{features}\n" \
-    "=======TEXTUAL CONTEXT=======\n" \
-    "{relevant_info}\n" \
-    "=======USER QUESTION========\n" \
-    "{query}\n" \
-    "=======YOUR ANSWER=========\n"
-    return prompt
+    if not features:
+        return "No relevant features found."
+    query_embed = embed_features_query(features, query)
+    corpus_texts = ["; ".join(f"{k}: {', '.join(v) if isinstance(v, list) else v}"
+                    for k, v in feat.items()) for feat in features]
+    corpus_embeds = embed_model.encode(corpus_texts, convert_to_tensor=True)
+    hits = util.semantic_search(query_embed, corpus_embeds, top_k=5)[0]
+    return "\n".join(corpus_texts[hit['corpus_id']] for hit in hits)
 
-def generate_response(prompt:str):
-    messages = [
-        {"role": "user", "content": prompt}
-    ]
-    text = llm_tokeniser.apply_chat_template(
-        messages,
-        tokenize=False,
-        add_generation_prompt=True
-    )
-    model_inputs = llm_tokeniser([text], return_tensors="pt").to(llm_model.device)
-
-    generated_ids = llm_model.generate(
-        **model_inputs,
-        max_new_tokens=1024
+# -------- BUILD PROMPT -------- #
+def build_prompt(query):
+    section = parse_intent(query)
+    relevant = retrieve_relevant_info(query, section)
+    features = retrieve_features(section)[:5]
+    return (
+        "You are a world-class music theory tutor. Be precise, reference bars, explain clearly.\n"
+        f"=======MUSICAL CONTEXT=======\n{features}\n"
+        f"=======TEXTUAL CONTEXT=======\n{relevant}\n"
+        f"=======USER QUESTION=======\n{query}\n"
+        "=======YOUR ANSWER=========\n"
     )
 
-    generated_ids = [
-        output_ids[len(input_ids):] for input_ids, output_ids in zip(model_inputs.input_ids, generated_ids)
-    ]
+# -------- GENERATE RESPONSE -------- #
+def generate_response(prompt):
+    response = llm_model(prompt)
+    print(response.strip())
+    return response.strip()
 
-    response = llm_tokeniser.batch_decode(generated_ids, skip_special_tokens=True)[0]
-    print(response)
-
-
-
-
-# query = "Why does the hook feel so gloomy?"
-# section = parse_intent(query)
-# print(f"Section identified: {section}")
-# mid_prompt = retrieve_features(section)
-# embed = embed_features_query(mid_prompt, query)
-# semantic_search_query(embed, top_k=5)
-
-
+# -------- Main -------- #
+if __name__ == "__main__":
+    q = "Why does the piece modulate from A minor to C major in the middle?"
+    p = build_prompt(q)
+    generate_response(p)
