@@ -1,63 +1,50 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import './Botpage.css';
+import './Botpage.css'
 
-const Botpage = () => {
-  const navigate = useNavigate();
-  const [messages, setMessages] = useState([
-    { sender: 'bot', text: '🎵 Welcome! Ask me anything about music.' }
-  ]);
+function Botpage() {
   const [input, setInput] = useState('');
+  const [messages, setMessages] = useState([]);
 
-  const handleSend = () => {
+  const sendMessage = async () => {
     if (!input.trim()) return;
 
-    setMessages([...messages, { sender: 'user', text: input }]);
-    setInput('');
+    setMessages([...messages, { role: 'user', text: input }]);
 
-    
-    setTimeout(() => {
-      setMessages(prev => [
-        ...prev,
-        { sender: 'bot', text: '🎶 I see! I\'ll analyse that right away.' }
-      ]);
-    }, 1000);
+    const res = await fetch('http://localhost:8000/chat/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ query: input, session_id: 'ee' }),
+    });
+
+    const data = await res.json();
+    setMessages(prev => [...prev, { role: 'bot', text: data.response }]);
+    setInput('');
   };
 
   return (
-    <div className="bot-container">
-      <header className="bot-header">
-        <h1>Schaefer</h1>
-        <p>Your Music Analyser and Assistant</p>
-      </header>
-
-      <div className="chat-window">
+    <div style={{ padding: '2rem' }}>
+      <h2>Chat with Schaefer</h2>
+      <div style={{ border: '1px solid gray', padding: '1rem', height: '300px', overflowY: 'scroll' }}>
         {messages.map((msg, index) => (
-          <div
-            key={index}
-            className={`chat-bubble ${msg.sender === 'bot' ? 'bot' : 'user'}`}
-          >
-            {msg.text}
+          <div key={index} style={{ textAlign: msg.role === 'user' ? 'right' : 'left' }}>
+            <strong>{msg.role === 'user' ? 'You' : 'Bot'}:</strong> {msg.text}
           </div>
         ))}
       </div>
-
-      <div className="chat-input-bar">
-        <input
-          type="text"
-          placeholder="Type a message..."
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && handleSend()}
-        />
-        <button onClick={handleSend}>➤</button>
-      </div>
-
-      <div className="bot-footer">
-        <button onClick={() => navigate('/Home')}>← Home</button>
-      </div>
+      <input
+        type="text"
+        value={input}
+        onChange={e => setInput(e.target.value)}
+        placeholder="Type your message"
+        style={{ width: '80%', marginTop: '1rem' }}
+      />
+      <button onClick={sendMessage} style={{ marginLeft: '1rem' }}>
+        Send
+      </button>
     </div>
   );
-};
+}
 
 export default Botpage;
