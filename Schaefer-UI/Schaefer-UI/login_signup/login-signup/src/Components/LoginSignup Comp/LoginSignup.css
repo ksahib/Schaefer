@@ -1,0 +1,128 @@
+.container{
+    display: flex;
+    flex-direction: column;
+    margin: auto;
+     width: 600px;
+    margin-top: 200px;
+    background: #fff;
+    padding-bottom: 30px;
+
+}
+
+.header{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 9px;
+    width: 100%;
+    margin-top: 30px;
+
+}
+
+.text{
+    color: black;
+    font-size: 48px;
+    font-weight: 700;
+
+}
+
+.underline{
+    width: 61px;
+    height: 6px;
+    background: black;
+    border-radius: 9px;
+
+}
+
+.inputs{
+    margin-top: 55px;
+    display: flex;
+    flex-direction: column;
+    gap: 25px;
+
+}
+
+.input{
+    display: flex;
+    align-items: center;
+    margin: auto;
+    width: 480px;
+    height: 80px;
+    background: #eaeaea;
+    border-radius: 6px;
+
+}
+
+.input img{
+    margin: 0px 30px;
+}
+
+.input input{
+    height: 50px;
+    width: 400px;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: #797979;
+    font-size: 19px;
+
+}
+
+.submit-container{
+    display: flex;
+    gap: 30px;
+    margin: 60px auto;
+
+}
+
+.submit{
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 220px;
+    height: 59px;
+    color:#fff;
+    background: #000;
+    border-radius: 50px;
+    font-size: 19px;
+    font-weight: 700;
+    cursor: pointer;
+
+}
+
+.submitbutton{ 
+   display: flex;
+   margin: 0 auto; 
+  justify-content: center;
+  align-items: center;
+  width: 220px;
+  height: 59px;
+  color: #fff;
+  background: #000;
+  border-radius: 50px;
+  font-size: 19px;
+  font-weight: 700;
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  transition: background-color 0.3s ease, box-shadow 0.3s ease;
+
+}
+
+.submitbutton:hover {
+  background-color: #222;
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
+}
+
+.submitbutton:active {
+  background-color: #111;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
+  transform: translateY(1px);
+}
+
+.gray{
+    background: #eaeaea;
+    color: #797979;
+
+
+}
